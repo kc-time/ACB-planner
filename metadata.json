@@ -1,0 +1,5 @@
+{
+  "name": "MapleACB - Stock Tax Calculator",
+  "description": "A professional-grade Adjusted Cost Base (ACB) calculator for Canadian investors, featuring superficial loss detection, T1135 monitoring, and IBKR CSV integration.",
+  "requestFramePermissions": []
+}
