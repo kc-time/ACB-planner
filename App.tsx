@@ -6,20 +6,16 @@ import {
   Calculator, 
   FileUp, 
   ShieldAlert, 
-  AlertCircle,
   Settings,
   X,
   Plus,
   Calendar,
-  Filter,
   ChevronDown,
-  Download,
   Info,
-  ExternalLink,
   HelpCircle,
   Trash2
 } from 'lucide-react';
-import { RawTransaction, LedgerEntry, PositionSummary, TaxYearSummary, TransactionType } from './types';
+import { RawTransaction, LedgerEntry, PositionSummary, TaxYearSummary } from './types';
 import { calculateACB, getPositionsSummary, getTaxSummaries } from './acbLogic';
 import Dashboard from './components/Dashboard';
 import TransactionList from './components/TransactionList';
@@ -29,6 +25,9 @@ import ManualTransactionModal from './components/ManualTransactionModal';
 import { isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 
 type DatePreset = 'all' | 'custom' | string;
+
+// Unique key for GitHub Pages to prevent collisions with other apps on the same domain
+const STORAGE_KEY = 'maple-acb-kc-time-planner-v1';
 
 const App: React.FC = () => {
   const [transactions, setTransactions] = useState<RawTransaction[]>([]);
@@ -45,7 +44,7 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    const saved = localStorage.getItem('maple-acb-data');
+    const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -60,9 +59,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (transactions.length > 0) {
-      localStorage.setItem('maple-acb-data', JSON.stringify(transactions));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
     } else {
-      localStorage.removeItem('maple-acb-data');
+      localStorage.removeItem(STORAGE_KEY);
     }
   }, [transactions]);
 
@@ -98,9 +97,9 @@ const App: React.FC = () => {
   }, [transactions]);
 
   const clearAllData = () => {
-    if (window.confirm("ARE YOU SURE? This will permanently delete all imported transactions and clear your local database.")) {
+    if (window.confirm("ARE YOU SURE? This will permanently delete all imported trades from your local browser storage.")) {
       setTransactions([]);
-      localStorage.removeItem('maple-acb-data');
+      localStorage.removeItem(STORAGE_KEY);
     }
   };
 
@@ -136,17 +135,19 @@ const App: React.FC = () => {
         if (currentMode === 'TRADE') {
           const currency = parts[0];
           const symbol = parts[2];
-          if (!symbol || symbol === 'Symbol' || symbol === 'USD.CAD') return;
+          
+          // Ignore currency pairs as per instruction
+          if (!symbol || symbol === 'Symbol' || symbol === 'USD.CAD' || symbol === 'CAD.USD') return;
 
           const dateStr = parts[3];
           let dt: Date;
-          if (dateStr && (dateStr.includes(';') || dateStr.includes(':'))) {
-            const separator = dateStr.includes(';') ? ';' : ' ';
+          if (dateStr && (dateStr.includes(';') || dateStr.includes(':') || dateStr.includes(' '))) {
+            const separator = dateStr.includes(';') ? ';' : (dateStr.includes(' ') ? ' ' : ':');
             const [d, t] = dateStr.split(separator);
             const year = d.includes('-') ? d.split('-')[0] : d.slice(0, 4);
             const month = d.includes('-') ? d.split('-')[1] : d.slice(4, 6);
             const day = d.includes('-') ? d.split('-')[2] : d.slice(6, 8);
-            const formattedTime = t.includes(':') ? t : t.replace(/(\d{2})(\d{2})(\d{2})/, '$1:$2:$3');
+            const formattedTime = t ? (t.includes(':') ? t : t.replace(/(\d{2})(\d{2})(\d{2})/, '$1:$2:$3')) : '12:00:00';
             dt = new Date(`${year}-${month}-${day}T${formattedTime}`);
           } else {
             dt = new Date(dateStr);
@@ -194,7 +195,7 @@ const App: React.FC = () => {
       if (parsedTransactions.length > 0) {
         setTransactions(prev => [...prev, ...parsedTransactions]);
       } else {
-        alert("Check 'IBKR Setup Guide' for required fields.");
+        alert("Check 'IBKR Setup Guide' for required fields. No compatible stock trades found.");
       }
     };
     reader.readAsText(file);
@@ -205,8 +206,8 @@ const App: React.FC = () => {
     <div className="min-h-screen flex bg-slate-50 text-slate-900 overflow-hidden">
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 bg-white border-r border-slate-200 flex flex-col z-20`}>
         <div className="p-6 flex items-center gap-3">
-          <div className="bg-rose-600 p-2 rounded-lg text-white"><Calculator size={24} /></div>
-          {isSidebarOpen && <span className="font-bold text-xl tracking-tight">Maple<span className="text-rose-600">ACB</span></span>}
+          <div className="bg-rose-600 p-2 rounded-lg text-white shadow-lg shadow-rose-200"><Calculator size={24} /></div>
+          {isSidebarOpen && <span className="font-black text-xl tracking-tighter">Maple<span className="text-rose-600">ACB</span></span>}
         </div>
         <nav className="flex-1 px-4 py-6 space-y-2">
           <SidebarItem icon={<BarChart3 size={20} />} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} collapsed={!isSidebarOpen} />
@@ -216,7 +217,7 @@ const App: React.FC = () => {
         </nav>
         <div className="p-4 border-t border-slate-100 space-y-2">
            {transactions.length > 0 && isSidebarOpen && (
-             <button onClick={clearAllData} className="w-full flex items-center justify-center gap-2 py-2 text-sm text-slate-400 hover:text-rose-600 transition-colors font-bold uppercase tracking-tight">
+             <button onClick={clearAllData} className="w-full flex items-center justify-center gap-2 py-3 text-[10px] text-rose-600 hover:bg-rose-50 rounded-xl transition-all font-black uppercase tracking-widest border border-rose-100">
                <Trash2 size={16} /> Clear All Data
              </button>
            )}
@@ -229,10 +230,13 @@ const App: React.FC = () => {
             <div className="flex flex-col gap-1">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Filters</span>
               <div className="flex gap-2">
-                <select className="pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold appearance-none" value={tickerFilter} onChange={(e) => setTickerFilter(e.target.value)}>
-                  {availableTickers.map(t => <option key={t} value={t}>{t === 'ALL' ? 'All Tickers' : t}</option>)}
-                </select>
-                <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold" value={datePreset} onChange={(e) => setDatePreset(e.target.value)}>
+                <div className="relative">
+                  <select className="pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold appearance-none focus:ring-2 focus:ring-rose-500" value={tickerFilter} onChange={(e) => setTickerFilter(e.target.value)}>
+                    {availableTickers.map(t => <option key={t} value={t}>{t === 'ALL' ? 'All Tickers' : t}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                </div>
+                <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-rose-500" value={datePreset} onChange={(e) => setDatePreset(e.target.value)}>
                   <option value="all">All Time</option>
                   {availableYears.map(y => <option key={y} value={y}>{y} Tax Year</option>)}
                 </select>
@@ -250,23 +254,23 @@ const App: React.FC = () => {
         </header>
         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
           {transactions.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
-              <div className="bg-rose-100 p-8 rounded-[40px] text-rose-600 mb-8 animate-pulse shadow-xl shadow-rose-100/50"><FileUp size={64} /></div>
-              <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">No Financial Data Found</h2>
-              <p className="text-slate-500 mb-10 text-lg leading-relaxed">Import your IBKR Flex Query report to calculate your Adjusted Cost Base, track superficial losses, and see multi-currency pools.</p>
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto">
+              <div className="bg-rose-100 p-10 rounded-[48px] text-rose-600 mb-10 animate-pulse shadow-2xl shadow-rose-200/50"><FileUp size={80} /></div>
+              <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">Ready for your IBKR Report</h2>
+              <p className="text-slate-500 mb-12 text-xl leading-relaxed font-medium">Upload your Flex Query to calculate your CAD Adjusted Cost Base and track multi-currency pools.</p>
               
-              <div className="flex flex-col gap-4 w-full">
-                <label className="w-full flex items-center justify-center gap-3 bg-rose-600 hover:bg-rose-700 text-white px-8 py-5 rounded-[24px] text-xl font-black cursor-pointer shadow-2xl shadow-rose-200 transition-all hover:-translate-y-1 active:scale-95">
-                  <FileUp size={28} />
+              <div className="flex flex-col gap-4 w-full px-10">
+                <label className="w-full flex items-center justify-center gap-4 bg-rose-600 hover:bg-rose-700 text-white px-10 py-6 rounded-[32px] text-2xl font-black cursor-pointer shadow-2xl shadow-rose-300 transition-all hover:-translate-y-1.5 active:scale-95 active:translate-y-0">
+                  <FileUp size={32} />
                   Choose IBKR CSV
                   <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
                 </label>
                 
                 <button 
                   onClick={() => setShowGuide(true)} 
-                  className="flex items-center justify-center gap-2 text-sm font-bold text-blue-600 hover:bg-blue-50 px-6 py-4 rounded-2xl border-2 border-dashed border-blue-200 transition-all"
+                  className="flex items-center justify-center gap-2 text-sm font-black text-blue-600 hover:bg-blue-50 px-8 py-5 rounded-3xl border-2 border-dashed border-blue-200 transition-all uppercase tracking-widest"
                 >
-                  <Info size={18} /> View Required Flex Query Fields
+                  <Info size={20} /> View Required Flex Query Setup
                 </button>
               </div>
             </div>
@@ -283,30 +287,30 @@ const App: React.FC = () => {
 
       {showGuide && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-2xl rounded-[32px] shadow-2xl p-10 overflow-hidden relative">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-black flex items-center gap-3 tracking-tight"><Settings className="text-blue-600" /> Flex Query Guide</h2>
-              <button onClick={() => setShowGuide(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={24} /></button>
+          <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-12 overflow-hidden relative border border-slate-100">
+            <div className="flex justify-between items-center mb-10">
+              <h2 className="text-3xl font-black flex items-center gap-4 tracking-tight"><Settings className="text-blue-600" /> Flex Query Guide</h2>
+              <button onClick={() => setShowGuide(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={28} /></button>
             </div>
-            <div className="space-y-6">
-              <div className="bg-slate-50 p-6 rounded-[24px] border border-slate-100">
-                <h3 className="font-black text-slate-900 mb-4 flex items-center gap-2"><span className="w-6 h-6 bg-blue-600 text-white rounded flex items-center justify-center text-[10px]">1</span> Trades (Execution)</h3>
-                <div className="grid grid-cols-2 gap-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter">
+            <div className="space-y-8">
+              <div className="bg-slate-50 p-8 rounded-[32px] border border-slate-100 shadow-inner">
+                <h3 className="font-black text-slate-900 mb-5 flex items-center gap-3"><span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-xs">1</span> Trades (Execution)</h3>
+                <div className="grid grid-cols-2 gap-3 text-[10px] font-black text-slate-500 uppercase tracking-tight">
                   {['CurrencyPrimary','FXRateToBase','Symbol','DateTime','Quantity','TradePrice','IBCommission','IBCommissionCurrency'].map(f => (
-                    <div key={f} className="bg-white px-3 py-2 rounded-xl border border-slate-200">{f}</div>
+                    <div key={f} className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-sm">{f}</div>
                   ))}
                 </div>
               </div>
-              <div className="bg-slate-50 p-6 rounded-[24px] border border-slate-100">
-                <h3 className="font-black text-slate-900 mb-4 flex items-center gap-2"><span className="w-6 h-6 bg-rose-600 text-white rounded flex items-center justify-center text-[10px]">2</span> Corporate Actions (Detail)</h3>
-                <div className="grid grid-cols-2 gap-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter">
+              <div className="bg-slate-50 p-8 rounded-[32px] border border-slate-100 shadow-inner">
+                <h3 className="font-black text-slate-900 mb-5 flex items-center gap-3"><span className="w-8 h-8 bg-rose-600 text-white rounded-lg flex items-center justify-center text-xs">2</span> Corporate Actions (Detail)</h3>
+                <div className="grid grid-cols-2 gap-3 text-[10px] font-black text-slate-500 uppercase tracking-tight">
                   {['CurrencyPrimary','Symbol','Report Date','Quantity','Description','Type'].map(f => (
-                    <div key={f} className="bg-white px-3 py-2 rounded-xl border border-slate-200">{f}</div>
+                    <div key={f} className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-sm">{f}</div>
                   ))}
                 </div>
               </div>
             </div>
-            <button onClick={() => setShowGuide(false)} className="mt-10 w-full py-4 bg-slate-900 text-white rounded-[20px] font-black text-lg hover:bg-slate-800 transition-all shadow-xl">Start Importing</button>
+            <button onClick={() => setShowGuide(false)} className="mt-12 w-full py-5 bg-slate-900 text-white rounded-[24px] font-black text-xl hover:bg-slate-800 transition-all shadow-xl active:scale-95">I've configured my Flex Query</button>
           </div>
         </div>
       )}
